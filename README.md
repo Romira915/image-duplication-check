@@ -4,5 +4,5 @@
 
 ```shell
 pyenv install 3.11.6
-poevn install
+poetry install
 ```
