@@ -100,7 +100,7 @@ def find_duplicates(
     return result
 
 
-def show_duplicates(result: list[dict], output_dir: str | None = None) -> None:
+def show_duplicates(result: list[dict], output_dir: str | None = None) -> str:
     if output_dir is None:
         output_dir = os.path.join(os.getcwd(), "duplicates")
     os.makedirs(output_dir, exist_ok=True)
@@ -138,6 +138,7 @@ def show_duplicates(result: list[dict], output_dir: str | None = None) -> None:
         saved += 1
 
     print(f"Saved {saved} comparison images to {output_dir}")
+    return output_dir
 
 
 def delete_duplicates(result: list[dict]) -> None:
@@ -238,8 +239,9 @@ def main() -> None:
     if not result:
         return
 
+    output_dir = None
     if not args.no_show:
-        show_duplicates(result)
+        output_dir = show_duplicates(result)
 
     if args.delete:
         delete_duplicates(result)
@@ -247,6 +249,12 @@ def main() -> None:
         answer = input("Delete duplicate images? (y/n): ")
         if answer.lower() == "y":
             delete_duplicates(result)
+
+    if output_dir and os.path.exists(output_dir):
+        import shutil
+
+        shutil.rmtree(output_dir)
+        print(f"Cleaned up {output_dir}")
 
 
 if __name__ == "__main__":
