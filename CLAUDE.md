@@ -1,0 +1,31 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## プロジェクト概要
+
+画像の重複チェックツール。指定ディレクトリ内の画像をimgsimライブラリでベクトル化し、全ペアの距離を計算して重複画像を検出・削除する。主なインターフェースはJupyter Notebook (`image_duplication_check/main.ipynb`)。
+
+## セットアップ
+
+```shell
+# Python 3.11.6 が必要 (.python-version で指定)
+uv sync
+```
+
+パッケージマネージャはpoetryからuvに移行済み。
+
+## アーキテクチャ
+
+- `image_duplication_check/__init__.py` — コアライブラリ。画像の読み込み(`load_image`)、ベクトル化(`vectorize_image`, `load_and_vectorize_image`)、距離計算(`image_distance`)を提供
+- `image_duplication_check/main.ipynb` — メインのワークフロー。ディレクトリ指定 → 画像バリデーション → 並列ベクトル化(ThreadPoolExecutor) → 並列距離計算(ProcessPoolExecutor) → 重複表示・削除
+
+## 主要な依存関係
+
+- **imgsim** — 画像のベクトル化と距離計算（`imgsim.Vectorizer`, `imgsim.distance`）
+- **OpenCV (cv2)** — 画像の読み込み（imgsimの依存として入る）
+- **torchvision** — imgsimの内部で使用されるモデル
+
+## 重複判定
+
+距離閾値 `< 0.1` で重複と判定（`main.ipynb` 内で使用）。
