@@ -4,21 +4,42 @@ import sys
 
 import cv2
 import imgsim
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from matplotlib import font_manager
 from tqdm import tqdm
 
 from image_duplication_check import batch_vectorize_images
 
 
+def _setup_japanese_font() -> None:
+    candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        "/mnt/c/Windows/Fonts/msgothic.ttc",
+        "/mnt/c/Windows/Fonts/YuGothR.ttc",
+        "/mnt/c/Windows/Fonts/meiryo.ttc",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            font_manager.fontManager.addfont(path)
+            prop = font_manager.FontProperties(fname=path)
+            matplotlib.rcParams["font.family"] = prop.get_name()
+            return
+
+
 def is_valid_image(file_path: str) -> bool:
     try:
         with open(file_path, "rb") as f:
-            header = f.read(10)
+            header = f.read(12)
             if not (
                 header.startswith(b"\xff\xd8")
                 or header.startswith(b"\x89PNG\r\n\x1a\n")
                 or header[:6] in (b"GIF87a", b"GIF89a")
+                or (header[:4] == b"RIFF" and header[8:12] == b"WEBP")
             ):
                 return False
         img = cv2.imread(file_path)
@@ -44,7 +65,9 @@ def find_duplicates(
     batch_size: int,
     max_workers: int | None = None,
 ) -> list[dict]:
-    vtr = imgsim.Vectorizer()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
+    vtr = imgsim.Vectorizer(device=device)
 
     images = []
     with tqdm(total=len(image_path_list), desc="Vectorizing") as progress:
@@ -77,16 +100,25 @@ def find_duplicates(
     return result
 
 
-def show_duplicates(result: list[dict], output_dir: str | None = None) -> None:
+def show_duplicates(result: list[dict], output_dir: str | None = None) -> str:
     if output_dir is None:
         output_dir = os.path.join(os.getcwd(), "duplicates")
     os.makedirs(output_dir, exist_ok=True)
 
+    _setup_japanese_font()
+
+    saved = 0
     for idx, r in enumerate(result):
         file_path_a = r["file_path"][0]
         file_path_b = r["file_path"][1]
-        image_a = cv2.cvtColor(cv2.imread(file_path_a), cv2.COLOR_BGR2RGB)
-        image_b = cv2.cvtColor(cv2.imread(file_path_b), cv2.COLOR_BGR2RGB)
+        raw_a = cv2.imread(file_path_a)
+        raw_b = cv2.imread(file_path_b)
+        if raw_a is None or raw_b is None:
+            print(f"Skipping pair {idx}: cannot read image", file=sys.stderr)
+            continue
+        image_a = cv2.cvtColor(raw_a, cv2.COLOR_BGR2RGB)
+        image_b = cv2.cvtColor(raw_b, cv2.COLOR_BGR2RGB)
+        del raw_a, raw_b
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
         ax1.imshow(image_a)
@@ -103,8 +135,10 @@ def show_duplicates(result: list[dict], output_dir: str | None = None) -> None:
             pass
         plt.close(fig)
         del image_a, image_b
+        saved += 1
 
-    print(f"Saved {len(result)} comparison images to {output_dir}")
+    print(f"Saved {saved} comparison images to {output_dir}")
+    return output_dir
 
 
 def delete_duplicates(result: list[dict]) -> None:
@@ -205,8 +239,9 @@ def main() -> None:
     if not result:
         return
 
+    output_dir = None
     if not args.no_show:
-        show_duplicates(result)
+        output_dir = show_duplicates(result)
 
     if args.delete:
         delete_duplicates(result)
@@ -214,6 +249,12 @@ def main() -> None:
         answer = input("Delete duplicate images? (y/n): ")
         if answer.lower() == "y":
             delete_duplicates(result)
+
+    if output_dir and os.path.exists(output_dir):
+        import shutil
+
+        shutil.rmtree(output_dir)
+        print(f"Cleaned up {output_dir}")
 
 
 if __name__ == "__main__":
