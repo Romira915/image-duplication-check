@@ -6,13 +6,15 @@ readme = "README.md"
 authors = [{ name = "Romira915", email = "40430090+Romira915@users.noreply.github.com" }]
 requires-python = "==3.11.6"
 dependencies = [
-    "ipykernel>=6.29.5",
     "imgsim>=0.1.2",
     "torchvision>=0.16.2",
     "numpy>=1.26.4",
     "matplotlib>=3.10.0",
     "tqdm>=4.67.1",
 ]
+
+[project.scripts]
+image-duplication-check = "image_duplication_check.main:main"
 
 [build-system]
 requires = ["hatchling"]
